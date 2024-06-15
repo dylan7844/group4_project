@@ -18,19 +18,22 @@ class ArduinoControl:
         self.ser.write(f"{command}\n".encode())
 
     def manual_control(self, led_state, buzzer_state, marquee_text):
-        self.send_command(f"LED{led_state}")
-        self.send_command(f"BUZZER{buzzer_state}")
-        if marquee_text:
-            self.send_command(f"LCD{marquee_text}")
+        if not self.mute_state:
+            self.send_command(f"LED{led_state}")
+            self.send_command(f"BUZZER{buzzer_state}")
+            if marquee_text:
+                self.send_command(f"LCD{marquee_text}")
 
     def auto_sensor_control(self):
         while self.auto_mode:
-            self.send_command("AUTO")
+            if not self.mute_state:
+                self.send_command("AUTO")
             time.sleep(1)
 
     def set_timer(self, index, pin, state, hour, minute, message):
-        command = f"TIMER{index}{pin}{state}{hour:02d}{minute:02d}{message}"
+        command = f"TIMER {index} {pin} {state} {hour:02d} {minute:02d} {message}"
         self.send_command(command)
+        print(command)
 
     def add_timer(self, index, pin, state, hour, minute, message):
         timer_thread = Thread(target=self.set_timer, args=(index, pin, state, hour, minute, message))
@@ -149,9 +152,7 @@ class ControlPanelApp:
         if marquee_text:
             self.arduino.manual_control(self.led_var.get(), self.buzzer_var.get(), marquee_text)
             self.time_label.config(text=f"Marquee Text: {marquee_text}")  # 更新 Label 显示跑马灯文字
-        else:
-            self.time_label.config(text="Current Time: ")  # 若没有跑马灯文字则显示当前时间
-
+        
     def edit_marquee(self):
         self.marquee_var.set("")  # 清空跑马灯文字
 
@@ -174,10 +175,11 @@ class ControlPanelApp:
         hour = self.hour_var.get()
         minute = self.minute_var.get()
         message = self.message_var.get()
+        print(index, pin, state, hour, minute, message)
         self.arduino.add_timer(index, pin, state, hour, minute, message)
 
 if __name__ == "__main__":
     root = tk.Tk()
-    arduino = ArduinoControl("COM7")  # 更换为你的 COM Port
+    arduino = ArduinoControl(port='COM7', baudrate=9600)  # 更换为你的 COM Port
     app = ControlPanelApp(root, arduino)
     root.mainloop()
