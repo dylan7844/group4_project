@@ -10,6 +10,7 @@ void setup() {
     Serial.println("Couldn't find RTC");
     while (1);
   }
+  
 
   // Manually set the time here:
   rtc.adjust(DateTime(2024, 6, 14, 20, 18, 0));  // Change to your current time
