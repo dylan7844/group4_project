@@ -153,14 +153,14 @@ void handleCommand(String command) {
     }
   } else if (command.startsWith("TIMER")) {
     // 讀取不同部分的索引，這裡假設命令格式是 "TIMER index pin state hour minute message"
-    int index = command.substring(6, 7).toInt();
-    int pin = command.substring(9, 10).toInt();
-    int state = command.substring(12, 13).toInt();
-    int hour = command.substring(15, 17).toInt();
-    int minute = command.substring(19, 21).toInt();
+    int index = command.substring(6).toInt();
+    int pin = command.substring( 8).toInt();
+    int state = command.substring(10).toInt();
+    int hour = command.substring(12, 14).toInt();
+    int minute = command.substring(15, 17).toInt();
     
     // 讀取消息部分，從索引23開始直到字符串結尾
-    String message = command.substring(23);
+    String message = command.substring(18);
 
     // 如果消息包含大括號結尾，截斷消息
     int endIdx = message.indexOf('}');
