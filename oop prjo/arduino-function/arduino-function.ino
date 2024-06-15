@@ -33,10 +33,12 @@ bool objectDetected = false;
 bool lcdBlinkState = false;
 bool timeBlinkState = false;
 bool muteState = false;
+bool checkHumidityState = true;
 String lcdMessage = "";
 float humidity = 0.0;
 
 struct Timer {
+
   int pin;
   int state;
   int hour;
@@ -101,11 +103,7 @@ void loop() {
     }
   }
 
-  // Display current time if no update for 1 minute
-  if (lcdMessage == "" && currentMillis - lcdPreviousMillis >= lcdUpdateInterval) {
-    displayCurrentTime();
-    lcdPreviousMillis = currentMillis;  // Reset the timer for LCD updates
-  }
+  
 
   // Time blink logic
   if (currentMillis - previousTimeBlinkMillis >= timeBlinkInterval) {
@@ -114,38 +112,9 @@ void loop() {
     displayCurrentTime();
   }
 
-  // Read humidity
-  humidity = dht.readHumidity();
-  if (isnan(humidity)) {
-    Serial.println("Failed to read from DHT sensor!");
-    return;
-  }
-
-  // Display humidity on the LCD
-  lcd.setCursor(8, 0);
-  lcd.print("H:");
-  lcd.print(humidity);
-  lcd.print("%");
-
-  // Check humidity level and control LED, buzzer, and Pin 13
-  if (humidity >= 60) {
-    if (!muteState) {
-      unsigned long currentBlinkMillis = millis();
-      if (currentBlinkMillis - previousMillis >= interval) {
-        previousMillis = currentBlinkMillis;
-        digitalWrite(RED_LED_PIN, !digitalRead(RED_LED_PIN));
-        digitalWrite(IO_PIN1, !digitalRead(IO_PIN1));
-        buzz();
-        blink();
-      }
-    } else {
-      digitalWrite(RED_LED_PIN, LOW);
-      digitalWrite(IO_PIN1, LOW);
-      digitalWrite(BUZZER_PIN, LOW);
-    }
-  } else {
-    digitalWrite(RED_LED_PIN, LOW);
-    digitalWrite(IO_PIN1, LOW);
+  // Check humidity if the state allows it
+  if (checkHumidityState) {
+    checkHumidity();
   }
 
   checkTimers(); // Check and execute timers
@@ -154,18 +123,24 @@ void loop() {
 }
 
 void handleCommand(String command) {
+  Serial.print("Received command: ");
+  Serial.println(command);
+
   if (command.startsWith("LED")) {
     int state = command.substring(3).toInt();
     digitalWrite(RED_LED_PIN, state);
+    Serial.println("LED state changed.");
   } else if (command.startsWith("LCD")) {
     lcdMessage = command.substring(3);
     lcdBlinkState = true;  // Reset blink state
     lcdPreviousMillis = millis();
-  } else if (command.startsWith("TIME")) {
-    // This command is now unnecessary since the time will be handled by the RTC
+    Serial.print("LCD message set to: ");
+    Serial.println(lcdMessage);
   } else if (command.startsWith("BUZZER")) {
     int state = command.substring(6).toInt();
     digitalWrite(BUZZER_PIN, state);
+    Serial.print("Buzzer state changed to: ");
+    Serial.println(state);
   } else if (command.startsWith("AUTO")) {
     int distance = sonar.ping_cm();
     if (distance > 0 && distance <= 50) {
@@ -174,35 +149,83 @@ void handleCommand(String command) {
       
       previousMillis = millis();
       objectDetected = true;
+      Serial.println("AUTO command executed.");
     }
   } else if (command.startsWith("TIMER")) {
-    int index = command.substring(5, 6).toInt();
-    int pin = command.substring(6, 7).toInt();
-    int state = command.substring(7, 8).toInt();
-    int hour = command.substring(8, 10).toInt();
-    int minute = command.substring(10, 12).toInt();
-    String message = command.substring(12);
-    if (index >= 0 && index < 5) {
-      timers[index] = {pin, state, hour, minute, message, true};
+    // 讀取不同部分的索引，這裡假設命令格式是 "TIMER index pin state hour minute message"
+    int index = command.substring(6, 7).toInt();
+    int pin = command.substring(9, 10).toInt();
+    int state = command.substring(12, 13).toInt();
+    int hour = command.substring(15, 17).toInt();
+    int minute = command.substring(19, 21).toInt();
+    
+    // 讀取消息部分，從索引23開始直到字符串結尾
+    String message = command.substring(23);
+
+    // 如果消息包含大括號結尾，截斷消息
+    int endIdx = message.indexOf('}');
+    if (endIdx != -1) {
+        message = message.substring(0, endIdx );
     }
-  } else if (command.startsWith("MUTE")) {
+
+    // 將接收到的數據打印到串行監視器
+    Serial.print("Received TIMER command: index=");
+    Serial.print(index);
+    Serial.print(", pin=");
+    Serial.print(pin);
+    Serial.print(", state=");
+    Serial.print(state);
+    Serial.print(", hour=");
+    Serial.print(hour);
+    Serial.print(", minute=");
+    Serial.print(minute);
+    Serial.print(", message=");
+    Serial.println(message);
+    
+    // 在這裡執行你的邏輯
+
+
+   
+        
+        timers[index] = {pin, state, hour, minute, message, true};
+        
+        Serial.println("TIMER command processed and timer set.");
+    }
+
+
+
+   else if (command.startsWith("MUTE")) {
     muteState = !muteState;
     if (muteState) {
       digitalWrite(BUZZER_PIN, LOW);
       digitalWrite(RED_LED_PIN, LOW);
       digitalWrite(IO_PIN1, LOW);
+      digitalWrite(IO_PIN2, LOW);
+      digitalWrite(IO_PIN3, LOW);
+      checkTimers();
+      Serial.println("MUTE command executed: muted.");
+    } else {
+      Serial.println("MUTE command executed: unmuted.");
     }
-  }
+  } else {
+    Serial.println("Unknown command received.");
+ }
 }
 
-void blink(){
-  while(1){
+
+void blink() {
+  for (int i = 0; i < 6; i++) {  // Blink 6 times (3 times ON/OFF)
     digitalWrite(RED_LED_PIN, HIGH);
     digitalWrite(IO_PIN1, LOW);  
+    digitalWrite(IO_PIN2, HIGH);
     delay(100);
     digitalWrite(IO_PIN1, HIGH);
     digitalWrite(RED_LED_PIN, LOW);
+    digitalWrite(IO_PIN2, LOW);
     delay(100);
+    digitalWrite(IO_PIN1, LOW);
+    digitalWrite(RED_LED_PIN, LOW);
+    digitalWrite(IO_PIN2, LOW);
   }
 }
 
@@ -230,13 +253,80 @@ void displayCurrentTime() {
 }
 
 void checkTimers() {
+
   DateTime now = rtc.now();
-  for (int i = 0; i < 5; i++) {
+  checkHumidityState = false;  // Disable humidity check during timer check
+ for (int i = 0; i < 5; i++) {
     if (timers[i].active && now.hour() == timers[i].hour && now.minute() == timers[i].minute) {
-      digitalWrite(timers[i].pin, timers[i].state);
-      lcd.setCursor(0, 1);
-      lcd.print(timers[i].message);
+      // Deactivate humidity detection
+      Serial.println('DETECED');
+      
+
+      // Execute timer actions
+      buzz();
+      lcdMessage = timers[i].message;
+      lcdBlinkState = true;
+      lcdPreviousMillis = millis();
+      unsigned long startMillis = millis();
+      
+      // Blink the message for 5 seconds
+      while (millis() - startMillis < 5000) {
+        unsigned long currentMillis = millis();
+        if (currentMillis - lcdPreviousMillis >= lcdInterval) {
+          lcdPreviousMillis = currentMillis;
+          lcdBlinkState = !lcdBlinkState;
+          if (lcdBlinkState) {
+            lcd.setCursor(0, 1); // Display on second row
+            lcd.print(lcdMessage);
+            Serial.println('displaysucess');
+          } else {
+            lcd.setCursor(0, 1); // Clear second row
+            lcd.print("                "); 
+          }
+        }
+      }
+      
+      lcdMessage = "";  // Clear the message after 5 seconds
       timers[i].active = false; // Deactivate the timer after execution
+
+      delay(1000);  // Pause 1 second
     }
+  }
+  checkHumidityState = true;  // Re-enable humidity check after timer check
+}
+
+void checkHumidity() {
+  // Read humidity
+  humidity = dht.readHumidity();
+  if (isnan(humidity)) {
+    Serial.println("Failed to read from DHT sensor!");
+    return;
+  }
+
+  // Display humidity on the LCD
+  lcd.setCursor(8, 0);
+  lcd.print("H:");
+  lcd.print(humidity);
+  lcd.print("%");
+
+  // Check humidity level and control LED, buzzer, and Pin 13
+  if (humidity >= 60 && !muteState) {
+    if (!muteState) {
+      unsigned long currentBlinkMillis = millis();
+      if (currentBlinkMillis - previousMillis >= interval) {
+        previousMillis = currentBlinkMillis;
+        digitalWrite(RED_LED_PIN, !digitalRead(RED_LED_PIN));
+        digitalWrite(IO_PIN1, !digitalRead(IO_PIN1));
+        buzz();
+        blink();
+      }
+    } else {
+      digitalWrite(RED_LED_PIN, LOW);
+      digitalWrite(IO_PIN1, LOW);
+      digitalWrite(BUZZER_PIN, LOW);
+    }
+  } else {
+    digitalWrite(RED_LED_PIN, LOW);
+    digitalWrite(IO_PIN1, LOW);
   }
 }
