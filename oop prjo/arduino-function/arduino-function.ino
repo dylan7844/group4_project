@@ -143,15 +143,25 @@ void handleCommand(String command) {
     Serial.println(state);
   } else if (command.startsWith("AUTO")) {
     int distance = sonar.ping_cm();
-    if (distance > 0 && distance <= 50) {
-      digitalWrite(IO_PIN1, HIGH);
-      buzz();
-      
-      previousMillis = millis();
-      objectDetected = true;
-      Serial.println("AUTO command executed.");
+    
+
+    while (distance > 0 && distance < 50) {
+        // 距离大于等于50时退出循环
+        if (distance >= 50) {
+            break;
+        }
+      accblink(); 
+
+        
+       distance = sonar.ping_cm(); 
     }
-  } else if (command.startsWith("TIMER")) {
+
+    previousMillis = millis();
+    objectDetected = true;
+    Serial.println("AUTO command executed.");
+}
+
+    else if (command.startsWith("TIMER")) {
     // 讀取不同部分的索引，這裡假設命令格式是 "TIMER index pin state hour minute message"
     int index = command.substring(6).toInt();
     int pin = command.substring( 8).toInt();
@@ -212,7 +222,34 @@ void handleCommand(String command) {
  }
 }
 
-
+void accblink(){
+   String phrase; 
+   int distance = sonar.ping_cm();
+       if(distance<40){ 
+        phrase="gay at your back!!"  ;
+        
+        }
+       if(distance<10){
+        phrase ="GAY IN YOUR ASS!!" ;
+        }
+        
+    int t = 20; // 初始延迟基准时间
+        digitalWrite(BUZZER_PIN, HIGH);
+        digitalWrite(RED_LED_PIN, HIGH);
+        digitalWrite(IO_PIN1, LOW);
+        lcd.setCursor(0, 1);
+        lcd.print(phrase);
+        // 根据距离调整延迟时间，使得距离越近，延迟时间越短，频率越快
+        delay(t * distance);
+        digitalWrite(BUZZER_PIN, LOW);
+        digitalWrite(IO_PIN1, HIGH);
+        digitalWrite(RED_LED_PIN, LOW);
+        lcd.setCursor(0, 1);
+        lcd.print("                              ");
+        delay(t * distance);
+        digitalWrite(IO_PIN1, LOW);
+       
+}
 void blink() {
   for (int i = 0; i < 6; i++) {  // Blink 6 times (3 times ON/OFF)
     digitalWrite(RED_LED_PIN, HIGH);
